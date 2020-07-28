@@ -4,7 +4,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption")
+// const encrypt = require("mongoose-encryption")  use md5
+const md5 = require('md5')
 const app = express();
 
 app.use(express.static("public"));
@@ -25,7 +26,7 @@ const userSchema = new mongoose.Schema({
 });
 
 //https://www.npmjs.com/package/mongoose-encryption
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password'] }); //only encrypt password
+// userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ['password'] }); //only encrypt password
 
 const User = new mongoose.model("User", userSchema);
 
@@ -43,13 +44,13 @@ app.get('/register', (req, res) => {
 });
 
 //LEVEL 1- USER NAME AND PASSWORD ONLY
-//users data added to database check with robo 3t
+//users data added to database check with robo-3t
 app.post("/register", (req, res) => {
   const newUser = new User({
     email: req.body.username,
-    password: req.body.password
+    password: md5(req.body.password) //irreversible hash
   });
-  //During save, documents are encrypted and then signed.
+  //During save, documents are encrypted and then signed(with mongoose encryption)
   newUser.save(function (err) {
     if (err) {
       console.log(err);
@@ -63,7 +64,7 @@ app.post("/register", (req, res) => {
 app.post("/login", function (req, res) {
   //users input
   const username = req.body.username;
-  const password = req.body.password;
+  const password = md5(req.body.password);
 
   //check against database, email(database) field with username(user gave)
   //problem is with password, shows as a string, for this use mongoose encryption
