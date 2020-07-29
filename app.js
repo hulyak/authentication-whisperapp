@@ -71,6 +71,12 @@ app.get('/register', (req, res) => {
   res.render("register");
 });
 
+//de-authenticate the user
+app.get('/logout', function (req, res) {
+  req.logout();
+  res.redirect('/');
+});
+
 //if the user is already logged in render secrets page
 app.get('/secrets', function (req, res) {
   if (req.isAuthenticated()) {
