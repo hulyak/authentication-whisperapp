@@ -17,6 +17,8 @@ const passportLocalMongoose = require('passport-local-mongoose');
 //http://www.passportjs.org/packages/passport-google-oauth20/
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const findOrCreate = require('mongoose-findorcreate');
+const strategy = require('passport-facebook');
+const FacebookStrategy = strategy.Strategy;
 const app = express();
 
 app.use(express.static('public'));
@@ -50,6 +52,9 @@ mongoose.set('useCreateIndex', true);
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
+  googleId: String, 
+  secret: String,
+  facebookId:String
 });
 
 //https://www.npmjs.com/package/mongoose-encryption
@@ -80,15 +85,32 @@ passport.deserializeUser(function(id, done) {
 passport.use(
   new GoogleStrategy(
     {
-      clientID: process.env.CLIENT_ID,
-      clientSecret: process.env.CLIENT_SECRET,
-      callbackURL: 'http://localhost:3000/auth/google/secrets',
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: process.env.GOOGLE_CALLBACK_URL,
       userProfileURL: 'https://www.googleapis.com/oauth2/v3/userinfo',
     },
     function (accessToken, refreshToken, profile, cb) {
       console.log(profile)
       User.findOrCreate({ googleId: profile.id }, function(err, user) {
         return cb(err, user);
+      });
+    }
+  )
+);
+
+passport.use(
+  new FacebookStrategy(
+    {
+      clientID: process.env.FACEBOOK_CLIENT_ID,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+      callbackURL: process.env.FACEBOOK_CALLBACK_URL,
+      profileFields: ["email", "name"]
+    },
+    function (accessToken, refreshToken, profile, done) {
+      console.log(profile);
+      User.findOrCreate({ facebookId: profile.id }, function(err, user) {
+        return done(err, user);
       });
     }
   )
@@ -111,6 +133,16 @@ app.get('/auth/google/secrets',
     res.redirect('/secrets');
   });
 
+app.get('/auth/facebook',
+  passport.authenticate('facebook', { scope: ['email'] }));
+
+app.get('/auth/fb/secrets',
+  passport.authenticate('facebook', { failureRedirect: '/login' }),
+   function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/secrets');
+});
+
 app.get('/login', (req, res) => {
   res.render('login');
 });
@@ -125,6 +157,14 @@ app.get('/logout', function(req, res) {
   res.redirect('/');
 });
 
+app.get("/submit", function (req, res) {
+  if (req.isAuthenticated()) {
+    res.render('submit');
+  } else {
+    res.redirect('/login');
+  }
+});
+
 //if the user is already logged in render secrets page
 app.get('/secrets', function(req, res) {
   if (req.isAuthenticated()) {
@@ -134,6 +174,24 @@ app.get('/secrets', function(req, res) {
   }
 });
 
+app.post("/submit", function (req, res) {
+  const submittedSecret = req.body.secret;
+  //find the current user and save the secret into their file, passport saves user info inside req.user
+  //find the user by their id
+  console.log(req.user);
+  User.findById(req.user.id, function (err, foundUser){
+    if(err) {
+      console.log(err);
+    }else{
+      if(foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(function () {
+          res.redirect("/secrets"); //save secret to database and show to user
+        });
+      }
+    }
+  });
+});
 //register users with passport-local-mongoose
 app.post('/register', function(req, res) {
   User.register({ username: req.body.username }, req.body.password, function(
